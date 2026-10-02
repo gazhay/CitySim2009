@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CitySim2009</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: #f2f5f3;
+    }
+
+    .app-container {
+      max-width: 1320px;
+      margin: 0 auto;
+      overflow: hidden;
+    }
+
+    .app-header {
+      background: #6CADDF;
+      color: #fff;
+    }
+
+    .drop-zone {
+      background: #f8faf9;
+      border: 2px dashed #9aaea5;
+      border-radius: .375rem;
+      margin: 1.25rem;
+      transition: background .2s, border-color .2s;
+    }
+
+    .drop-zone.dragover {
+      background: #e5f4eb;
+      border-color: #198754;
+    }
+
+    .file-input { display: none; }
+
+    .table-container {
+      max-height: 65vh;
+      overflow: auto;
+    }
+
+    .table-container thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #e9efec;
+      white-space: nowrap;
+    }
+
+    .col-rank { text-align: center; width: 3.5rem; font-weight: 700; }
+    .col-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .col-pts { text-align: right; font-weight: 700; }
+
+    .qualification-ucl > * { background-color: #dbeafe !important; }
+    .qualification-uel > * { background-color: #dcfce7 !important; }
+    .qualification-uecl > * { background-color: #fef3c7 !important; }
+    .qualification-relegation > * { background-color: #fee2e2 !important; }
+
+    .status-msg { color: #5f6b66; font-size: .875rem; }
+
+    .scenario-badge {
+      display: inline-block;
+      margin-left: .35rem;
+      font-size: .7rem;
+      vertical-align: middle;
+    }
+
+    .legend-swatch {
+      display: inline-block;
+      width: .75rem;
+      height: .75rem;
+      border-radius: 2px;
+      margin-right: .3rem;
+      vertical-align: -1px;
+    }
+
+    .legend-ucl { background: #dbeafe; }
+    .legend-uel { background: #dcfce7; }
+    .legend-uecl { background: #fef3c7; }
+    .legend-relegation { background: #fee2e2; }
+
+    @media (max-width: 575.98px) {
+      .drop-zone { margin: .75rem; }
+      .table-container { max-height: 60vh; }
+    }
+    .citysim-logo {
+      max-height: 180px;
+      vertical-align: middle;
+      padding:0; margin:0;
+    }
+  </style>
+</head>
+<body>
+
+  <main class="container-fluid py-3 py-lg-4 px-2 px-sm-3">
+  <div class="app-container card shadow-sm">
+    <div class="app-header card-header px-3 px-lg-4 py-3 d-flex justify-content-between align-items-center gap-3">
+      <h1 class="h4 mb-0"><img src="/CitySim2009.png" alt="CitySim 2009" class="citysim-logo"></h1>
+      <span id="active-season-label" class="small text-white-50 text-end">Loading data...</span>
+    </div>
+
+    <!-- Controls Panel -->
+    <div class="controls-grid row g-3 p-3 border-top border-bottom bg-body-tertiary" id="controls-bar" style="display: none;">
+
+      <!-- Season Selection -->
+      <div class="col-12 col-xl-3">
+      <div class="control-box bg-white border rounded p-3 h-100">
+        <h3 class="h6 text-uppercase text-secondary">1. Select Season</h3>
+        <div class="control-row d-flex gap-2 align-items-center flex-wrap">
+          <select class="form-select form-select-sm" id="season-select" onchange="handleSeasonChange(this.value)"></select>
+        </div>
+      </div>
+      </div>
+
+      <!-- Point Deductions -->
+      <div class="col-12 col-xl-3">
+      <div class="control-box bg-white border rounded p-3 h-100">
+        <h3 class="h6 text-uppercase text-secondary">2. Deduct Points</h3>
+        <div class="control-row d-flex gap-2 align-items-center flex-wrap">
+          <select class="form-select form-select-sm flex-grow-1" id="deduct-team-select"></select>
+          <input class="form-control form-control-sm" type="number" id="deduction-pts" placeholder="Pts" min="1" max="50" style="width: 65px;">
+          <button class="btn btn-danger btn-sm" onclick="applyDeduction()">Deduct</button>
+        </div>
+      </div>
+      </div>
+
+      <!-- Team Removal / Walkovers -->
+      <div class="col-12 col-xl-3">
+      <div class="control-box bg-white border rounded p-3 h-100">
+        <h3 class="h6 text-uppercase text-secondary">3. Exclusion &amp; Walkover</h3>
+        <div class="control-row d-flex gap-2 align-items-center flex-wrap">
+          <select class="form-select form-select-sm" id="scenario-team-select"></select>
+          <select class="form-select form-select-sm" id="scenario-mode">
+            <option value="expel">Remove Team (Bye Weeks)</option>
+            <option value="walkover">Replace Games (3-0 Walkover to Opponents)</option>
+          </select>
+          <button class="btn btn-success btn-sm" onclick="applyScenario()">Apply</button>
+        </div>
+      </div>
+      </div>
+
+      <!-- Reset Controls -->
+      <div class="col-12 col-xl-3">
+      <div class="control-box bg-white border rounded p-3 h-100">
+        <h3 class="h6 text-uppercase text-secondary">4. Reset Rules</h3>
+        <div class="control-row d-flex gap-2 align-items-center flex-wrap">
+          <button class="btn btn-outline-secondary btn-sm" onclick="resetSeasonRules()">Reset Current</button>
+          <button class="btn btn-secondary btn-sm" onclick="resetAllRules()">Reset All</button>
+        </div>
+      </div>
+      </div>
+
+    </div>
+
+    <!-- Table View -->
+    <div class="table-container table-responsive">
+      <div id="movement-summary" class="d-none px-3 py-2 border-bottom small" aria-live="polite"></div>
+      <div class="d-flex flex-wrap gap-3 px-3 py-2 border-bottom small" aria-label="Table highlights">
+        <span><i class="legend-swatch legend-ucl"></i>UCL places</span>
+        <span><i class="legend-swatch legend-uel"></i>UEL places</span>
+        <span><i class="legend-swatch legend-uecl"></i>UECL places</span>
+        <span><i class="legend-swatch legend-relegation"></i>Relegation places</span>
+      </div>
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th class="col-rank">Pos</th>
+            <th>Club</th>
+            <th class="col-num">P</th>
+            <th class="col-num">W</th>
+            <th class="col-num">D</th>
+            <th class="col-num">L</th>
+            <th class="col-num">GF</th>
+            <th class="col-num">GA</th>
+            <th class="col-num">GD</th>
+            <th class="col-pts">Pts</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr>
+            <td colspan="10" class="text-center text-secondary py-5">
+              Loading <code>epl_all_matches_2009_2026.csv</code>...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    let matchesData = [];
+    let currentSeason = "";
+    let qualificationData = {};
+    let renderedPositions = {};
+
+    // Multi-Season Scenario Settings
+    // Format: { "2023-2024": { deductions: { "Manchester City": 10 }, excludedTeams: ["Manchester City"], walkoverTeams: [] } }
+    let seasonRules = {};
+
+    function parseCSVText(text) {
+      const rows = [];
+      let row = [];
+      let cell = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const character = text[i];
+        if (character === '"') {
+          if (inQuotes && text[i + 1] === '"') {
+            cell += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (character === ',' && !inQuotes) {
+          row.push(cell);
+          cell = '';
+        } else if ((character === '\n' || character === '\r') && !inQuotes) {
+          if (character === '\r' && text[i + 1] === '\n') i++;
+          row.push(cell);
+          if (row.some(value => value.trim())) rows.push(row);
+          row = [];
+          cell = '';
+        } else {
+          cell += character;
+        }
+      }
+
+      if (cell || row.length) {
+        row.push(cell);
+        if (row.some(value => value.trim())) rows.push(row);
+      }
+      if (rows.length < 2) return [];
+
+      const headers = rows[0].map(header => header.trim().replace(/^\uFEFF/, ''));
+      return rows.slice(1).map(values => {
+        const entry = {};
+        headers.forEach((header, index) => entry[header] = (values[index] || '').trim());
+        return entry;
+      });
+    }
+
+    function normalizeSeason(season) {
+      const match = String(season || '').replace(/[–—]/g, '-').match(/(\d{4})\D+(\d{2,4})/);
+      if (!match) return String(season || '').trim();
+      const startYear = Number(match[1]);
+      let endYear = Number(match[2]);
+      if (match[2].length === 2) {
+        endYear += Math.floor(startYear / 100) * 100;
+        if (endYear < startYear) endYear += 100;
+      }
+      return `${startYear}-${endYear}`;
+    }
+
+    function getQualificationBands(season) {
+      const result = qualificationData[normalizeSeason(season)];
+      if (!result) return { ucl: 0, uel: 0, uecl: 0, relegated: 0 };
+      const countClubs = value => value ? value.split(',').filter(club => club.trim()).length : 0;
+      return {
+        ucl: countClubs(result.UCL),
+        uel: countClubs(result.UEL),
+        uecl: countClubs(result.UECL),
+        relegated: countClubs(result.Relegated)
+      };
+    }
+
+    function getPositionBand(position, teamCount, bands) {
+      if (position <= bands.ucl) return 'ucl';
+      if (position <= bands.ucl + bands.uel) return 'uel';
+      if (position <= bands.ucl + bands.uel + bands.uecl) return 'uecl';
+      if (bands.relegated && position > teamCount - bands.relegated) return 'relegation';
+      return '';
+    }
+
+    function loadMatchText(text) {
+      matchesData = parseCSVText(text);
+      const seasons = [...new Set(matchesData.map(match => match.Season))].filter(Boolean).sort().reverse();
+      const seasonSelect = document.getElementById('season-select');
+      seasonSelect.innerHTML = '';
+
+      seasons.forEach(season => {
+        const option = document.createElement('option');
+        option.value = season;
+        option.textContent = season;
+        seasonSelect.appendChild(option);
+      });
+
+      if (seasons.length) {
+        document.getElementById('controls-bar').style.display = 'flex';
+        currentSeason = seasons[0];
+        renderSeasonTable(currentSeason);
+      } else {
+        document.getElementById('active-season-label').textContent = 'No match rows found';
+      }
+    }
+
+    async function loadDirectoryData() {
+      try {
+        const [matchesResponse, outcomesResponse] = await Promise.all([
+          fetch('epl_all_matches_2009_2026.csv'),
+          fetch('RealLifeWinnersLosers.csv')
+        ]);
+        if (!matchesResponse.ok || !outcomesResponse.ok) {
+          throw new Error('Could not fetch one or more CSV files');
+        }
+
+        const [matchesText, outcomesText] = await Promise.all([
+          matchesResponse.text(),
+          outcomesResponse.text()
+        ]);
+        qualificationData = {};
+        parseCSVText(outcomesText).forEach(result => {
+          qualificationData[normalizeSeason(result.Season)] = result;
+        });
+        loadMatchText(matchesText);
+      } catch (error) {
+        document.getElementById('active-season-label').textContent = 'Automatic load unavailable';
+        document.getElementById('table-body').innerHTML = `
+          <tr><td colspan="10" class="text-center text-secondary py-5">
+            Serve this directory over HTTP to load the CSV files automatically, or browse for the match dataset.
+          </td></tr>`;
+      }
+    }
+
+    loadDirectoryData();
+
+    function getRules(season) {
+      if (!seasonRules[season]) {
+        seasonRules[season] = { deductions: {}, excludedTeams: [], walkoverTeams: [] };
+      }
+      return seasonRules[season];
+    }
+
+    function calculateStandings(season) {
+      const rules = getRules(season);
+      const seasonMatches = matchesData.filter(m => m.Season === season);
+      const teams = {};
+
+      // Initialize team map from all participating teams in season
+      seasonMatches.forEach(m => {
+        if (m.HomeTeam && !teams[m.HomeTeam]) teams[m.HomeTeam] = { team: m.HomeTeam, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
+        if (m.AwayTeam && !teams[m.AwayTeam]) teams[m.AwayTeam] = { team: m.AwayTeam, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
+      });
+
+      seasonMatches.forEach(m => {
+        let home = m.HomeTeam;
+        let away = m.AwayTeam;
+        let fthg = parseInt(m.FTHG, 10);
+        let ftag = parseInt(m.FTAG, 10);
+
+        if (!home || !away || isNaN(fthg) || isNaN(ftag)) return;
+
+        // 1. Exclude Team (Bye Weeks) Scenario: Completely drop match
+        if (rules.excludedTeams.includes(home) || rules.excludedTeams.includes(away)) {
+          return;
+        }
+
+        // 2. Walkover Scenario: Override result to 3-0 against target team
+        if (rules.walkoverTeams.includes(home) && !rules.walkoverTeams.includes(away)) {
+          fthg = 0; ftag = 3;
+        } else if (rules.walkoverTeams.includes(away) && !rules.walkoverTeams.includes(home)) {
+          fthg = 3; ftag = 0;
+        }
+
+        teams[home].p++;
+        teams[away].p++;
+        teams[home].gf += fthg;
+        teams[home].ga += ftag;
+        teams[away].gf += ftag;
+        teams[away].ga += fthg;
+
+        if (fthg > ftag) {
+          teams[home].w++;
+          teams[home].pts += 3;
+          teams[away].l++;
+        } else if (ftag > fthg) {
+          teams[away].w++;
+          teams[away].pts += 3;
+          teams[home].l++;
+        } else {
+          teams[home].d++;
+          teams[home].pts += 1;
+          teams[away].d++;
+          teams[away].pts += 1;
+        }
+      });
+
+      // Remove excluded teams completely from final standings table
+      rules.excludedTeams.forEach(ex => delete teams[ex]);
+
+      return Object.values(teams);
+    }
+
+    function renderSeasonTable(season, previousPositions = null, removedTeam = '') {
+      currentSeason = season;
+      document.getElementById('active-season-label').textContent = `Active Season: ${season}`;
+
+      const tbody = document.getElementById('table-body');
+      const deductSelect = document.getElementById('deduct-team-select');
+      const scenarioSelect = document.getElementById('scenario-team-select');
+      const movementSummary = document.getElementById('movement-summary');
+
+      tbody.innerHTML = '';
+      deductSelect.innerHTML = '';
+      scenarioSelect.innerHTML = '';
+      movementSummary.classList.add('d-none');
+      movementSummary.textContent = '';
+
+      const rules = getRules(season);
+      const bands = getQualificationBands(season);
+      let standings = calculateStandings(season);
+
+      // Apply points deductions and sort
+      standings = standings.map(t => {
+        const deduction = rules.deductions[t.team] || 0;
+        const gd = t.gf - t.ga;
+        return {
+          ...t,
+          gd,
+          deduction,
+          effectivePts: t.pts - deduction
+        };
+      }).sort((a, b) => b.effectivePts - a.effectivePts || b.gd - a.gd || b.gf - a.gf);
+
+      let movedUp = 0;
+      let movedDown = 0;
+      const nextPositions = {};
+
+      standings.forEach((row, idx) => {
+        const tr = document.createElement('tr');
+        const position = idx + 1;
+        nextPositions[row.team] = position;
+        const positionBand = getPositionBand(position, standings.length, bands);
+        if (positionBand) tr.classList.add(`qualification-${positionBand}`);
+
+        let badges = '';
+        if (previousPositions && Object.prototype.hasOwnProperty.call(previousPositions, row.team)) {
+          const previousPosition = previousPositions[row.team];
+          const movement = previousPosition - position;
+          if (movement > 0) {
+            movedUp++;
+            badges += `<span class="badge text-bg-success scenario-badge" title="Moved from position ${previousPosition} to ${position}">+${movement}</span>`;
+          } else if (movement < 0) {
+            movedDown++;
+            badges += `<span class="badge text-bg-danger scenario-badge" title="Moved from position ${previousPosition} to ${position}">-${Math.abs(movement)}</span>`;
+          }
+        }
+        if (positionBand && positionBand !== 'relegation') {
+          const labels = { ucl: 'UCL', uel: 'UEL', uecl: 'UECL' };
+          const colors = { ucl: 'text-bg-primary', uel: 'text-bg-success', uecl: 'text-bg-warning' };
+          badges += `<span class="badge ${colors[positionBand]} scenario-badge">${labels[positionBand]}</span>`;
+        } else if (positionBand === 'relegation') {
+          badges += '<span class="badge text-bg-danger scenario-badge">Relegation</span>';
+        }
+        if (row.deduction > 0) badges += `<span class="badge text-bg-danger scenario-badge">-${row.deduction} pts</span>`;
+        if (rules.walkoverTeams.includes(row.team)) badges += '<span class="badge text-bg-warning scenario-badge">3-0 Forfeits</span>';
+
+        tr.innerHTML = `
+          <td class="col-rank">${idx + 1}</td>
+          <td>
+            <strong>${row.team}</strong> ${badges}
+          </td>
+          <td class="col-num">${row.p}</td>
+          <td class="col-num">${row.w}</td>
+          <td class="col-num">${row.d}</td>
+          <td class="col-num">${row.l}</td>
+          <td class="col-num">${row.gf}</td>
+          <td class="col-num">${row.ga}</td>
+          <td class="col-num">${row.gd > 0 ? '+' + row.gd : row.gd}</td>
+          <td class="col-pts">${row.effectivePts}</td>
+        `;
+        tbody.appendChild(tr);
+
+        // Populate dropdown selectors
+        const opt1 = document.createElement('option');
+        opt1.value = row.team; opt1.textContent = row.team;
+        deductSelect.appendChild(opt1);
+
+        const opt2 = document.createElement('option');
+        opt2.value = row.team; opt2.textContent = row.team;
+        scenarioSelect.appendChild(opt2);
+      });
+
+      if ([...deductSelect.options].some(option => option.value === 'Man City')) {
+        deductSelect.value = 'Man City';
+      }
+      if ([...scenarioSelect.options].some(option => option.value === 'Man City')) {
+        scenarioSelect.value = 'Man City';
+      }
+
+      renderedPositions = nextPositions;
+      if (previousPositions) {
+        const movementParts = [];
+        if (movedUp) movementParts.push(`${movedUp} ${movedUp === 1 ? 'team' : 'teams'} moved up`);
+        if (movedDown) movementParts.push(`${movedDown} ${movedDown === 1 ? 'team' : 'teams'} moved down`);
+        movementSummary.textContent = movementParts.length
+          ? `After change: ${movementParts.join(', ')}.`
+          : 'After change: no teams changed position.';
+        if (removedTeam) movementSummary.textContent += ` ${removedTeam} was removed from the standings.`;
+        movementSummary.classList.remove('d-none');
+      }
+    }
+
+    function handleSeasonChange(season) {
+      renderSeasonTable(season);
+    }
+
+    function applyDeduction() {
+      const team = document.getElementById('deduct-team-select').value;
+      const pts = parseInt(document.getElementById('deduction-pts').value, 10);
+      if (!team || !pts || pts <= 0) return;
+
+      const previousPositions = { ...renderedPositions };
+      const rules = getRules(currentSeason);
+      rules.deductions[team] = (rules.deductions[team] || 0) + pts;
+
+      document.getElementById('deduction-pts').value = '';
+      renderSeasonTable(currentSeason, previousPositions);
+    }
+
+    function applyScenario() {
+      const team = document.getElementById('scenario-team-select').value;
+      const mode = document.getElementById('scenario-mode').value;
+      if (!team) return;
+
+      const previousPositions = { ...renderedPositions };
+      const rules = getRules(currentSeason);
+
+      if (mode === 'expel') {
+        if (!rules.excludedTeams.includes(team)) rules.excludedTeams.push(team);
+        // Clear walkover flag if excluded
+        rules.walkoverTeams = rules.walkoverTeams.filter(t => t !== team);
+      } else if (mode === 'walkover') {
+        if (!rules.walkoverTeams.includes(team)) rules.walkoverTeams.push(team);
+        // Clear exclusion flag if walked over
+        rules.excludedTeams = rules.excludedTeams.filter(t => t !== team);
+      }
+
+      renderSeasonTable(currentSeason, previousPositions, mode === 'expel' ? team : '');
+    }
+
+    function resetSeasonRules() {
+      const previousPositions = { ...renderedPositions };
+      seasonRules[currentSeason] = { deductions: {}, excludedTeams: [], walkoverTeams: [] };
+      renderSeasonTable(currentSeason, previousPositions);
+    }
+
+    function resetAllRules() {
+      const previousPositions = { ...renderedPositions };
+      seasonRules = {};
+      renderSeasonTable(currentSeason, previousPositions);
+    }
+  </script>
+</body>
+<footer class="container footer text-center"><small class="text-muted">Some data from datahub.io</small></footer>
+</html>
